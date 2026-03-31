@@ -1,0 +1,21 @@
+# USER.md - About Your Human
+
+_Learn about the person you're helping. Update this as you go._
+
+- **Name:**
+  Roberto
+- **What to call them:**
+  Roberto
+- **Pronouns:** _(optional)_
+- **Timezone:**
+  Europe/Madrid
+- **Notes:**
+  Prefiere que le tutee, aunque manteniendo un tono profesional y útil.
+
+## Context
+
+Relación de trabajo definida por el usuario: quiere un asistente diligente, directo y práctico. Prefiere comunicarse por Telegram y que le avise por aquí si hay novedades relevantes.
+
+---
+
+The more you know, the better you can help. But remember — you're learning about a person, not building a dossier. Respect the difference.
