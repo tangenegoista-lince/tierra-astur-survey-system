@@ -11,6 +11,8 @@ _Learn about the person you're helping. Update this as you go._
   Europe/Madrid
 - **Notes:**
   Prefiere que le tutee, aunque manteniendo un tono profesional y útil.
+  Su correo es `tangenegoista@gmail.com` y puedo usarlo cuando haga falta para configuraciones locales como la identidad de Git.
+  Para identidades técnicas/locales como Git, prefiere que use `Lince` como nombre, no `Roberto`.
 
 ## Context
 
