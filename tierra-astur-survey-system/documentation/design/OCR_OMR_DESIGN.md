@@ -1,293 +1,293 @@
-# OCR/OMR Processing Design
+# Diseño de Procesamiento OCR/OMR
 
-## Overview
-This document details the approach for Optical Character Recognition (OCR) and Optical Mark Recognition (OMR) processing of Tierra Astur survey cards.
+## Visión General
+Este documento detalla el enfoque para el Reconocimiento Óptico de Caracteres (OCR) y el Reconocimiento Óptico de Marcas (OMR) del procesamiento de tarjetas de encuesta de Tierra Astur.
 
-## Processing Pipeline
+## Pipeline de Procesamiento
 
-1. **Image Preprocessing**
-2. **Layout Detection and Alignment**
-3. **Region of Interest (ROI) Extraction**
-4. **Text Recognition (OCR) for Handwritten Areas**
-5. **Mark Detection (OMR) for Checkboxes/Ratings**
-6. **Data Assembly and Validation**
-7. **Confidence Scoring and Flagging**
+1. **Preprocesamiento de Imagen**
+2. **Detección de Diseño y Alineación**
+3. **Extracción de Región de Interés (ROI)**
+4. **Reconocimiento de Texto (OCR) para Áreas Manuscritas**
+5. **Detección de Marcas (OMR) para Casillas/Botones**
+6. **Ensamblaje y Validación de Datos**
+7. **Puntuación de Confianza y Marcado**
 
-## 1. Image Preprocessing
+## 1. Preprocesamiento de Imagen
 
-### Goals:
-- Normalize lighting and contrast
-- Correct minor rotations and skews
-- Enhance text and mark clarity
-- Prepare for accurate region detection
+### Objetivos:
+- Normalizar iluminación y contraste
+- Corregir rotaciones y sesgos menores
+- Mejorar la claridad de texto y marcas
+- Preparar para detección precisa de regiones
 
-### Steps:
-- Convert to grayscale
-- Apply adaptive histogram equalization (CLAHE)
-- Denoise using non-local means or bilateral filter
-- Detect and correct skew using Hough Line Transform or projection profiling
-- Resize to standard DPI (300 DPI recommended for OCR)
+### Pasos:
+- Convertir a escala de grises
+- Aplicar ecualización de histograma adaptativa (CLAHE)
+- Desruido usando medias no locales o filtro bilateral
+- Detectar y corregir sesgo usando Transformada de Hough o perfilado de proyección
+- Redimensionar a DPI estándar (300 DPI recomendado para OCR)
 
-## 2. Layout Detection and Alignment
+## 2. Detección de Diseño y Alineación
 
-### Approach:
-- Use template matching or feature-based alignment (ORB, SIFT) to align scanned card to a master template
-- Master template defined per card version (front/back)
-- If template matching fails, fall back to contour detection for card boundaries
-- Apply perspective transform to get a top-down, aligned view
+### Enfoque:
+- Usar coincidencia de plantilla o alineación basada en características (ORB, SIFT) para alinear la tarjeta escaneada con una plantilla maestra
+- Plantilla maestra definida por versión de tarjeta (frontal/trasera)
+- Si la coincidencia de plantilla falla, volver a detección de contornos para los límites de la tarjeta
+- Aplicar transformación de perspectiva para obtener una vista superior, alineada
 
-### Fallback:
-- If no template match, use document scanning techniques (edge detection, contour approximation) to find the quadrilateral of the card
+### Plan B:
+- Si no hay coincidencia de plantilla, usar técnicas de escaneo de documentos (detección de bordes, aproximación de contornos) para encontrar el cuadrilátero de la tarjeta
 
-## 3. Region of Interest (ROI) Extraction
+## 3. Extracción de Región de Interés (ROI)
 
-Based on the PRD, we need to extract data from specific zones:
-- Restaurant name/header
-- Zone/sector
-- Date and time
-- Rating groups (Cocina, Personal, Sidra, Estado de la sidrería)
-- Yes/No questions
-- Observations/suggestions
-- Contact information (full name, city, phone, email)
+Basado en el PRD, necesitamos extraer datos de zonas específicas:
+- Nombre del restaurante/encabezado
+- Zona/sector
+- Fecha y hora
+- Grupos de calificaciones (Cocina, Personal, Sidra, Estado de la sidrería)
+- Preguntas Sí/No
+- Observaciones/sugerencias
+- Información de contacto (nombre completo, ciudad, teléfono, email)
 
-### Method:
-- Define ROI coordinates relative to the aligned template
-- Use a configuration file (JSON) that maps field names to:
-  - Bounding box (x, y, width, height) as percentage of card dimensions
-  - Field type (text, omr, date, etc.)
-  - Expected format/validation rules
-  - OCR/OMR engine parameters per region
+### Método:
+- Definir coordenadas de ROI relativas a la plantilla alineada
+- Usar un archivo de configuración (JSON) que mapee nombres de campos a:
+  - Caja delimitadora (x, y, ancho, alto) como porcentaje de dimensiones de la tarjeta
+  - Tipo de campo (texto, omr, fecha, etc.)
+  - Formato esperado/reglas de validación
+  - Parámetros del motor OCR/OMR por región
 
-### Example ROI Configuration:
+### Ejemplo de Configuración de ROI:
 ```json
 {
-  "restaurant_name": {
+  "nombre_restaurante": {
     "bbox": [0.1, 0.05, 0.8, 0.1],
-    "type": "text",
-    "preprocessing": ["threshold", "invert"],
-    "ocr_config": "--psm 6",
-    "validation": "required"
+    "tipo": "texto",
+    "preprocesamiento": ["umbral", "invertir"],
+    "config_ocr": "--psm 6",
+    "validacion": "requerido"
   },
-  "survey_date": {
+  "fecha_encuesta": {
     "bbox": [0.1, 0.2, 0.3, 0.05],
-    "type": "date",
-    "preprocessing": ["threshold"],
-    "ocr_config": "--psm 7 -c tessedit_char_whitelist=0123456789/-",
-    "validation": "date_format"
+    "tipo": "fecha",
+    "preprocesamiento": ["umbral"],
+    "config_ocr": "--psm 7 -c tessedit_char_whitelist=0123456789/-",
+    "validacion": "formato_fecha"
   }
 }
 ```
 
-## 4. Text Recognition (OCR) for Handwritten Areas
+## 4. Reconocimiento de Texto (OCR) para Áreas Manuscritas
 
-### Engine Choice:
-- Primary: Tesseract OCR (open source, good for structured forms)
-- Alternative/Pilot: Google Cloud Vision API or Azure Computer Vision for higher accuracy if needed
+### Elección de Motor:
+- Principal: Tesseract OCR (código abierto, bueno para formularios estructurados)
+- Alternativa/Piloto: Google Cloud Vision API o Azure Computer Vision para mayor precisión si es necesario
 
-### Handwriting Specifics:
-- Tesseract has limited handwriting capability; we will train custom models if accuracy is insufficient
-- For MVP, we assume structured handwriting (boxed or guided fields) which Tesseract can handle with proper preprocessing
-- Use whitelists and PSM (Page Segmentation Mode) tuning per field:
-  - Dates: `--psm 7 -c tessedit_char_whitelist=0123456789/-`
-  - Phone numbers: `--psm 7 -c tessedit_char_whitelist=0123456789+()-`
-  - Email: `--psm 7` (less restrictive, then validate with regex)
-  - General text: `--psm 6` (assume uniform block of text)
+### Específicos de Escritura a Mano:
+- Tesseract tiene capacidad limitada para escritura a mano; entrenaremos modelos personalizados si la precisión es insuficiente
+- Para el MVP, asumimos escritura a mano estructurada (campos con cuadros o guías) que Tesseract puede manejar con preprocesamiento adecuado
+- Usar listas blancas y ajuste de PSM (Modo de Segmentación de Página) por campo:
+  - Fechas: `--psm 7 -c tessedit_char_whitelist=0123456789/-`
+  - Números de teléfono: `--psm 7 -c tessedit_char_whitelist=0123456789+()-`
+  - Email: `--psm 7` (menos restrictivo, luego validar con regex)
+  - Texto general: `--psm 6` (asumir bloque uniforme de texto)
 
-### Preprocessing for OCR:
-- Binarization (Otsu or adaptive threshold)
-- Inversion if text is light on dark background
-- Dilation/erosion to connect broken characters
+### Preprocesamiento para OCR:
+- Binarización (Otsu o umbral adaptativo)
+- Inversión si el texto es claro sobre fondo oscuro
+- Dilatación/erosión para conectar caracteres rotos
 - Despeckling
 
-## 5. Mark Detection (OMR) for Checkboxes/Ratings
+## 5. Detección de Marcas (OMR) para Casillas/Botones
 
-### Approach:
-- For each rating group (1-5 scale) and yes/no questions, detect which box is marked
-- Steps per ROI:
-  a. Extract the ROI (containing the row of boxes)
-  b. Binarize (invert if marks are dark)
-  c. Find contours of individual boxes
-  d. For each box, calculate the percentage of dark pixels (fill ratio)
-  e. Apply threshold to determine if marked (e.g., >30% fill = marked)
-  f. Handle edge cases:
-     - No marks -> empty/null
-     - Multiple marks -> flag as inconsistent
-     - Ambiguous marks -> low confidence
+### Enfoque:
+- Para cada grupo de calificaciones (escala 1-5) y preguntas sí/no, detectar qué casilla está marcada
+- Pasos por ROI:
+  a. Extraer el ROI (conteniendo la fila de casillas)
+  b. Binarizar (invertir si las marcas son oscuras)
+  c. Encontrar contornos de casillas individuales
+  d. Para cada casilla, calcular el porcentaje de píxeles oscuros (ratio de llenado)
+  e. Aplicar umbral para determinar si está marcada (ej. >30% de llenado = marcada)
+  f. Manejar casos extremos:
+     - Ninguna marca -> vacío/nulo
+     - Múltiples marcas -> marcar como inconsistente
+     - Marcas ambiguas -> baja confianza
 
-### Configuration per OMR ROI:
+### Configuración por ROI de OMR:
 ```json
 {
   "cocina_elaboracion_en_cocina": {
     "bbox": [0.2, 0.4, 0.6, 0.05],
-    "type": "omr",
-    "omr_config": {
-      "box_count": 5,
-      "box_spacing": "equal",
-      "mark_threshold": 0.3,
-      "invert": true
+    "tipo": "omr",
+    "config_omr": {
+      "conteo_casillas": 5,
+      "espaciado_casillas": "igual",
+      "umbral_marca": 0.3,
+      "invertir": true
     },
-    "validation": "single_mark_per_row"
+    "validacion": "una_marca_por_fila"
   }
 }
 ```
 
-### Post-Processing:
-- Map marked box to value (leftmost=1, rightmost=5)
-- For yes/no: left=no (0), right=yes (5) per normalization rules
-- Calculate confidence based on fill ratio difference between top choice and second choice
+### Post-Procesamiento:
+- Mapear casilla marcada a valor (la más a la izquierda=1, la más a la derecha=5)
+- Para sí/no: izquierda=no (0), derecha=sí (5) según reglas de normalización
+- Calcular confianza basado en la diferencia de ratio de llenado entre la primera y segunda opción
 
-## 6. Data Assembly and Validation
+## 6. Ensamblaje y Validación de Datos
 
-### Output Structure per Card:
+### Estructura de Salida por Tarjeta:
 ```json
 {
-  "survey_id": "uuid",
-  "raw_extracted": {
-    "restaurant_name": "EL VASCO - OVIEDO",
-    "survey_date": "2026-04-15",
+  "id_encuesta": "uuid",
+  "extraido_crudo": {
+    "nombre_restaurante": "EL VASCO - OVIEDO",
+    "fecha_encuesta": "2026-04-15",
     ...
   },
-  "normalized": {
-    "restaurant_name": "EL VASCO - OVIEDO",
-    "survey_date": "2026-04-15",
+  "normalizado": {
+    "nombre_restaurante": "EL VASCO - OVIEDO",
+    "fecha_encuesta": "2026-04-15",
     "cocina_elaboracion_en_cocina": 4,
     ...
   },
-  "confidence": {
-    "restaurant_name": 0.95,
-    "survey_date": 0.87,
+  "confianza": {
+    "nombre_restaurante": 0.95,
+    "fecha_encuesta": 0.87,
     "cocina_elaboracion_en_cocina": 0.92,
     ...
   },
-  "flags": {
-    "survey_date": false,
+  "banderas": {
+    "fecha_encuesta": false,
     "cocina_elaboracion_en_cocina": false,
-    "email": true  // example: low confidence or invalid format
+    "email": true  // ejemplo: baja confianza o formato inválido
   },
-  "processing_metadata": {
-    "ocr_engine": "tesseract 5.3.0",
-    "processing_time_ms": 1200,
-    "aligned": true,
-    "template_used": "front_v2"
+  "metadatos_procesamiento": {
+    "motor_ocr": "tesseract 5.3.0",
+    "tiempo_procesamiento_ms": 1200,
+    "alineado": true,
+    "plantilla_usada": "frontal_v2"
   }
 }
 ```
 
-### Validation Rules:
-- **Required fields**: restaurant_name, survey_date (at least)
-- **Format validation**:
-  - Date: valid calendar date
-  - Phone: regex for Spanish format (+34 or 0/6/7/9 prefixes)
-  - Email: standard regex
-  - Ratings: must be 1-5 or null
-  - Yes/no: must be 0 or 5 (after normalization) or null
-- **Consistency checks**:
-  - No multiple marks in same OMR row
-  - If sidra group all null, that's acceptable (customer didn't drink sidra)
-- **Confidence thresholds**:
-  - Flag for review if any field confidence < 0.7
-  - Flag for review if validation fails
-  - Flag for review if multiple marks detected
+### Reglas de Validación:
+- **Campos requeridos**: nombre_restaurante, fecha_encuesta (al menos)
+- **Validación de formato**:
+  - Fecha: fecha de calendario válida
+  - Teléfono: regex para formato español (+34 o prefijos 0/6/7/9)
+  - Email: regex estándar
+  - Calificaciones: debe ser 1-5 o nulo
+  - Sí/no: debe ser 0 o 5 (después de normalización) o nulo
+- **Comprobaciones de consistencia**:
+  - Ninguna marca múltiple en la misma fila OMR
+  - Si el grupo de sidra es todo nulo, es aceptable (el cliente no bebió sidra)
+- **Umbrales de confianza**:
+  - Marcar para revisión si la confianza de cualquier campo < 0.7
+  - Marcar para revisión si la validación falla
+  - Marcar para revisión si se detectan marcas múltiples
 
-## 7. Confidence Scoring and Flagging
+## 7. Puntuación de Confianza y Marcado
 
-### Per-Field Confidence:
-- **OCR fields**: Use Tesseract's confidence output (average of word confidences in ROI)
-- **OMR fields**: 
-  - Confidence = 1 - (|fill_ratio_top - fill_ratio_second| / fill_ratio_top) 
-  - If only one mark above threshold, confidence based on how clearly it stands out
-  - If no marks or multiple marks, confidence = 0.0 (or low fixed value)
+### Confianza Por Campo:
+- **Campos OCR**: Usar salida de confianza de Tesseract (promedio de confianzas de palabras en ROI)
+- **Campos OMR**: 
+  - Confianza = 1 - (|ratio_llenado_primero - ratio_llenado_segundo| / ratio_llenado_primero) 
+  - Si solo una marca está por encima del umbral, confianza basada en qué claramente destaca
+  - Si no hay marcas o marcas múltiples, confianza = 0.0 (o valor bajo fijo)
 
-### Overall Card Confidence:
-- Weighted average of field confidences (weights by field importance)
-- Alternatively, minimum confidence across critical fields
+### Confianza General de la Tarjeta:
+- Promedio ponderado de confianzas de campos (pesos por importancia de campo)
+- Alternativamente, confianza mínima entre campos críticos
 
-### Flagging Logic:
-Create `is_flagged_for_review` true if:
-- Any required field is empty or invalid
-- Any field confidence < threshold (e.g., 0.7)
-- Any validation rule fails (format, consistency)
-- Multiple marks detected in any OMR row
-- Low overall confidence (< 0.6)
+### Lógica de Marcado:
+Crear `esta_marcado_para_revisión` verdadero si:
+- Cualquier campo requerido está vacío o es inválido
+- Cualquier campo tiene confianza < umbral (ej. 0.7)
+- Cualquier regla de validación falla (formato, consistencia)
+- Se detectan marcas múltiples en cualquier fila OMR
+- Baja confianza general (< 0.6)
 
-## 8. Handling Variabilities
+## 8. Manejo de Variabilidades
 
-### Card Variations:
-- Different restaurant names/colors in header -> handled by OCR in restaurant_name ROI
-- Slightly different layouts -> template matching with tolerance; fallback to flexible ROI detection
-- Different scan resolutions -> normalize to 300 DPI early in pipeline
+### Variaciones de Tarjeta:
+- Diferentes nombres/colores de restaurantes en el encabezado -> manejado por OCR en ROI de nombre_restaurante
+- Ligeramente diferentes diseños -> coincidencia de plantilla con tolerancia; fallback a detección de ROI flexible
+- Diferentes resoluciones de escaneo -> normalizar a 300 DPI temprano en el pipeline
 
-### Handwriting Variabilities:
-- Cursive vs print: Tesseract does best with isolated characters; preprocessing to break connected cursive if needed
-- Mixed case: OCR is case-sensitive; we will convert to desired case post-OCR if needed
-- Poor quality: rely on confidence scoring to flag for review
+### Variabilidades de Escritura a Mano:
+- Cursiva vs impresión: Tesseract funciona mejor con caracteres aislados; preprocesamiento para romper cursiva conectada si es necesario
+- Mayúsculas y minúsculas mezcladas: OCR es sensible a mayúsculas/minúsculas; convertiremos a mayúsculas/minúsculas deseadas post-OCR si es necesario
+- Baja calidad: confiar en puntuación de confianza para marcar para revisión
 
-## 9. Performance Considerations for High Volume (7000-8000/week)
+## 9. Consideraciones de Rendimiento para Alto Volumen (7000-8000/semana)
 
-### Optimizations:
-- **Parallel processing**: Process multiple cards concurrently (limited by CPU/RAM)
-- **Caching**: Cache template matching results if same card version batch
-- **Efficient OCR**: 
-  - Only run OCR on defined ROIs, not whole card
-  - Use Tesseract's `--psm` to limit processing
-- **Asynchronous processing**: 
-  - Upload -> store -> queue -> process -> store results
-  - Use message queue (Redis/RabbitMQ) or simple file-based queue for MVP
-- **Resource limits**: 
-  - Set timeout per card (e.g., 5 seconds) to prevent stuck processes
-  - Retry mechanism with different parameters for failed cards
+### Optimizaciones:
+- **Procesamiento paralelo**: Procesar múltiples tarjetas concurrentemente (limitado por CPU/RAM)
+- **Caché**: Almacenar en caché resultados de coincidencia de plantilla si el lote tiene la misma versión de tarjeta
+- **OCR eficiente**: 
+  - Ejecutar OCR solo en ROIs definidas, no en toda la tarjeta
+  - Usar `--psm` de Tesseract para limitar procesamiento
+- **Procesamiento asíncrono**: 
+  - Subir -> almacenar -> encolar -> procesar -> almacenar resultados
+  - Usar cola de mensajes (Redis/RabbitMQ) o cola basada en archivos simple para MVP
+- **Límites de recursos**: 
+  - Establecer timeout por tarjeta (ej. 5 segundos) para evitar procesos bloqueados
+  - Mecanismo de reintento con parámetros diferentes para tarjetas fallidas
 
-### Monitoring:
-- Track processing time per card
-- Track OCR/OMR success rates
-- Track flagging rates (to tune thresholds)
-- Alert on processing backlog
+### Monitoreo:
+- Rastrear tiempo de procesamiento por tarjeta
+- Rastrear tasas de éxito de OCR/OMR
+- Rastrear tasas de marcado (para ajustar umbrales)
+- Alertar sobre acumulación de procesamiento
 
-## 10. Tools and Libraries
+## 10. Herramientas y Bibliotecas
 
-### Primary:
-- **Tesseract OCR** (via wrapper: pytesseract for Python, or tesseract.js for Node.js)
-- **OpenCV** (for image processing, contour detection, template matching)
-- **NumPy** (for array operations in OMR fill ratio)
+### Principales:
+- **Tesseract OCR** (vía envoltorio: pytesseract para Python, o tesseract.js para Node.js)
+- **OpenCV** (para procesamiento de imagen, detección de contornos, coincidencia de plantilla)
+- **NumPy** (para operaciones de arreglos en ratio de llenado OMR)
 
-### Alternatives/Evaluations:
-- **Google ML Kit** or **Azure Form Recognizer** for higher accuracy OCR/OMR (if budget allows)
-- **TensorFlow/PyTorch** for custom trained models if open source insufficient
+### Alternativas/Evaluaciones:
+- **Google ML Kit** o **Azure Form Recognizer** para mayor precisión OCR/OMR (si el presupuesto lo permite)
+- **TensorFlow/PyTorch** para modelos entrenados personalmente si el código abierto es insuficiente
 
-### Language Choice:
-- For MVP: Python (rich ecosystem for CV/ML)
-- For production: Consider Node.js if frontend/backend is JS for uniformity
+### Elección de Lenguaje:
+- Para MVP: Python (ecosistema rico para CV/ML)
+- Para producción: Considerar Node.js si frontend/backend es JS para uniformidad
 
-## 11. Integration with System
+## 11. Integración con el Sistema
 
-### Input:
-- Image file (JPG, PNG, PDF first page) or PDF multipage (split into images)
+### Entrada:
+- Archivo de imagen (JPG, PNG, primera página de PDF) o PDF multipágina (dividido en imágenes)
 
-### Output:
-- Structured data as per `survey_card_extractions` and related tables
-- Original image stored in Supabase Storage
-- Processing metadata and confidence scores stored
+### Salida:
+- Datos estructurados según `encuesta_encabezado_extracciones` y tablas relacionadas
+- Imagen original almacenada en Almacenamiento de Supabase
+- Metadatos de procesamiento y puntuaciones de confianza almacenados
 
-### Error Handling:
-- If image cannot be loaded or aligned -> mark as failed, store error
-- If OCR engine fails -> fallback to manual queue or retry with different settings
-- Always preserve original image for re-processing
+### Manejo de Errores:
+- Si la imagen no puede cargarse o alinearse -> marcar como fallido, almacenar error
+- Si el motor OCR falla -> fallback a cola manual o reintentar con diferentes ajustes
+- Siempre preservar la imagen original para reprocesamiento
 
-## 12. Future Enhancements
+## 12. Mejoras Futuras
 
-### Handwriting Improvement:
-- Collect labeled data to train custom handwriting model (CRNN or Transformer)
-- Use semi-supervised learning with flagged reviews
+### Mejora de Escritura a Mano:
+- Recopilar datos etiquetados para entrenar modelo de escritura a mano personalizado (red neuronal recurrente o transformer)
+- Usar aprendizaje semi-supervisado con revisiones marcadas
 
-### Layout Adaptability:
-- Use machine learning (layoutlm) to detect fields without fixed templates
-- Allow user to define ROIs via drag-and-drop in review interface
+### Adaptabilidad de Diseño:
+- Usar aprendizaje automático (layoutlm) para detectar campos sin plantillas fijas
+- Permitir al usuario definir ROIs mediante arrastrar y soltar en interfaz de revisión
 
-### Confidence Calibration:
-- Use Platt scaling or isotonic regression to calibrate raw confidences to true probabilities
+### Calibración de Confianza:
+- Usar escalado de Platt o regresión isotónica para calibrar confianzas brutas a verdaderas probabilidades
 
-### Batch Consistency Checks:
-- Detect impossible combinations (e.g., high ratings but negative comments) for flagging
+### Verificaciones de Consistencia por Lote:
+- Detectar combinaciones imposibles (ej. altas calificaciones pero comentarios negativos) para marcar
 
-## Conclusion
-This OCR/OMR design provides a robust, configurable pipeline for extracting data from Tierra Astur survey cards. It balances off-the-shelf tools (Tesseract, OpenCV) with configurability to adapt to the specific card layout and variabilities. The design includes confidence scoring and flagging to ensure data quality while maintaining high throughput for the expected volume.
+## Conclusión
+Este diseño de OCR/OMR proporciona un pipeline robusto y configurable para extraer datos de tarjetas de encuesta de Tierra Astur. Equilibra herramientas de uso general (Tesseract, OpenCV) con configurabilidad para adaptarse al diseño específico de la tarjeta y variabilidades. El diseño incluye puntuación de confianza y marcado para asegurar la calidad de datos mientras mantiene un alto rendimiento para el volumen esperado.
