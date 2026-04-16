@@ -118,7 +118,7 @@ Este plan describe el desarrollo e implementación de un sistema para extraer da
 - **Pérdida de Datos**: Implementar copias de seguridad completas y recuperación punto en el tiempo
 
 ## Criterios de Éxito
-1. **Precisión**: >95% de precisión OCR para texto impreso en tarjetones de encuesta
+1. **Precisión**: >95% de precisión OCR para texto manuscrito en tarjetones de encuesta y 98% en OMR de celdas marcadas.
 2. **Velocidad de Procesamiento**: Promedio <3 segundos por encuesta desde subida hasta almacenamiento
 3. **Confiabilidad**: 99.9% de tiempo de actividad mensual
 4. **Escalabilidad**: Capacidad para procesar 8000 encuestas/semana con espacio para crecimiento
